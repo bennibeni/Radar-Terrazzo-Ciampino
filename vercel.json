@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/adsb/:match*",
+      "destination": "https://api.adsb.lol/:match*"
+    }
+  ]
+}
