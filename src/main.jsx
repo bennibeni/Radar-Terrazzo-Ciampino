@@ -16,7 +16,7 @@ function Pages() {
   const page = React.useSyncExternalStore(subscribeToNavigation, () => window.location.hash);
   React.useEffect(() => { window.scrollTo(0, 0); }, [page]);
   return <>
-    <App panorama={page === '#/panorama'} archive={page === '#/archivio'} />
+    <App panorama={page === '#/panorama'} archive={page === '#/archivio'} runway={page === '#/pista'} />
     <footer className="projects-footer container">
       <a href="https://links-page-bennibeni.vercel.app/">← ALLLINKS</a>
       <span>Radar Terrazzo Ciampino</span>

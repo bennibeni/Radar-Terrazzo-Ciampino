@@ -1,49 +1,76 @@
 import AirlineName from './AirlineName';
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Compass, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Compass, Info } from 'lucide-react';
+import { classifyFlight, TRACE_CRITERIA } from './flightClassification';
 import { readPhotoCalibration, projectAircraftToPhoto, outsideAircraftToPhoto } from './panoramaProjection';
 import OutsidePhoto from './OutsidePhoto';
-import PhotoAircraft from './PhotoAircraft';
+import PhotoAircraft, { PhotoAircraftCards } from './PhotoAircraft';
 import SunsetPanel from './SunsetPanel';
+import RouteWarning from './RouteWarning';
 
-export default function Panorama({ aircrafts, flightDetails, clock, lastSuccess, stale, status, isRunning, sunData, archivedAircraft }) {
-  const [showLabels, setShowLabels] = useState(true);
+export default function Panorama({ aircrafts, flightDetails, clock, lastSuccess, stale, status, isRunning, sunData, lightIndex, photoOpacity, sunsetPhase, archivedAircraft }) {
+  const classificationHelp = useRef(null);
   const [selectedHex, setSelectedHex] = useState(null);
   const [calibration, setCalibration] = useState(readPhotoCalibration);
   useEffect(() => { try { localStorage.setItem('panoramaCalibration', JSON.stringify(calibration)); } catch {} }, [calibration]);
   const projected = projectAircraftToPhoto(aircrafts, calibration);
   const outside = outsideAircraftToPhoto(aircrafts, calibration);
+  const flightsInCone = aircrafts.filter(ac => ac.inCone && ac.positionAge !== null);
   const selected = [...projected, ...outside].find(ac => ac.hex === selectedHex);
   const route = selected ? flightDetails[selected.callsign] : null;
   return (
-    <main className="container panorama-page">
+    <main className="container panorama-page" data-sunset-phase={sunsetPhase}>
       <header>
         <div>
           <a className="panorama-back" href="#/"><ArrowLeft size={16} /> Torna al radar</a>
           <h1><Compass size={26} color="#38bdf8" /> La visuale dal terrazzo</h1>
           <p className="subtitle">Via Francesco Gentile · Riferimenti per orientarti nel cielo</p>
         </div>
-        <button onClick={() => setShowLabels(value => !value)} aria-pressed={showLabels}>
-          <Eye size={16} /> {showLabels ? 'Nascondi indicazioni' : 'Mostra indicazioni'}
-        </button>
       </header>
 
       <figure className="panorama-figure">
         <div className="panorama-image">
-          <img src="/images/panorama-terrazzo.jpg" width="4080" height="3060"
+          <img src="/images/panorama-terrazzo.jpg" width="4080" height="3060" style={{ opacity: photoOpacity }}
             alt="Panorama dal terrazzo al tramonto: cielo libero al centro e a sinistra, via Francesco Gentile in basso e palazzi sulla destra." />
-          {showLabels && <div className="panorama-labels">
+          {flightsInCone.length === 0 ? <div className="panorama-labels">
             <div className="photo-bearing-scale" aria-label="Foto: bordo sinistro Ovest 270 gradi, centro 281 gradi, bordo destro 292 gradi">
               <span>O · 270°</span><span>281° · Centro</span><span>292°</span>
             </div>
-          </div>}
-          <PhotoAircraft aircrafts={projected} selectedHex={selectedHex} onSelect={setSelectedHex} archivedAircraft={archivedAircraft} />
+          </div> : <section className="photo-classification" aria-labelledby="photo-classification-title">
+            <div className="photo-classification-heading">
+              <h2 id="photo-classification-title">Classificazione</h2>
+              <button type="button" aria-label="Informazioni sulla classificazione" aria-haspopup="dialog"
+                onClick={() => classificationHelp.current.showModal()}>
+                <Info size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <ul>
+              {flightsInCone.map(ac => <li key={ac.hex}>
+                <strong>{ac.callsign}</strong> · {classifyFlight(ac, ac.routeDoubtful ? null : flightDetails[ac.callsign])}
+              </li>)}
+            </ul>
+          </section>}
+          <PhotoAircraftCards aircrafts={projected} onSelect={setSelectedHex} flightDetails={flightDetails}
+            archivedAircraft={archivedAircraft} />
+          <PhotoAircraft aircrafts={projected} selectedHex={selectedHex} onSelect={setSelectedHex} />
         </div>
-        <figcaption>Foto dal tuo terrazzo · 14 novembre 2026. Originale conservato; indicazioni sovrapposte disattivabili.</figcaption>
+        <figcaption>Foto dal tuo terrazzo · 14 novembre 2026.</figcaption>
       </figure>
-      <OutsidePhoto aircrafts={outside} onSelect={setSelectedHex} />
+      <dialog ref={classificationHelp} className="card photo-classification-dialog" aria-labelledby="classification-help-title">
+        <h2 id="classification-help-title">Cosa cercare nella traccia</h2>
+        <dl>
+          {TRACE_CRITERIA.map(([label, criteria]) => <React.Fragment key={label}>
+            <dt>{label}</dt>
+            <dd>{criteria}</dd>
+          </React.Fragment>)}
+          <dt>Pista 15 o 33</dt>
+          <dd>Sul tratto allineato alla pista, il movimento verso sud-est indica la 15 e quello verso nord-ovest indica la 33.</dd>
+        </dl>
+        <form method="dialog"><button>Chiudi</button></form>
+      </dialog>
+      <OutsidePhoto aircrafts={outside} onSelect={setSelectedHex} flightDetails={flightDetails} />
 
-      <SunsetPanel sunData={sunData} />
+      <SunsetPanel sunData={sunData} lightIndex={lightIndex} />
 
       <div className="panorama-notice">
         <strong>Calibrazione manuale della foto.</strong> Bordo sinistro 270° (Ovest), centro 281°,
@@ -76,7 +103,10 @@ export default function Panorama({ aircrafts, flightDetails, clock, lastSuccess,
         <p>{selected.aircraftType} · {selected.registration} · {selected.phase}</p>
         <p>Direzione {Math.round(selected.bearing)}° · Elevazione ~{selected.elevationDeg}° · Distanza {selected.distKm.toFixed(1)} km</p>
         <p>Quota barometrica {selected.altMeters === null ? 'N/D' : `${selected.altMeters} m`} · Velocità {selected.speedKmh === null ? 'N/D' : `${selected.speedKmh} km/h`} · Posizione {Math.floor(selected.positionAge + (clock - lastSuccess) / 1000)} s fa</p>
-        <p>{route && !route.unavailable ? `Rotta indicativa: ${route.originIata} → ${route.destIata} (ADSBdb, da verificare)` : 'Rotta non disponibile'}</p>
+        {selected.movementLabel && <p className="flight-movement">{selected.movementLabel}</p>}
+        {selected.routeDoubtful && route
+          ? <RouteWarning route={route} reason={selected.doubtfulReason} observedAt={lastSuccess - selected.positionAge * 1000} />
+          : <p>{route && !route.unavailable ? `Rotta indicativa · ${route.originIata} → ${route.destIata} (ADSBdb)` : 'Rotta non disponibile'}</p>}
         <button onClick={() => setSelectedHex(null)}>Chiudi dettagli</button>
       </section>}
 
@@ -91,6 +121,7 @@ export default function Panorama({ aircrafts, flightDetails, clock, lastSuccess,
         </div>
         <p>281° è vicino al lato Ovest del settore. I tetti possono nascondere gli aerei più bassi: il radar filtra la direzione, ma non considera ancora il profilo dei palazzi.</p>
       </section>
+
     </main>
   );
 }

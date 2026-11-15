@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sunset } from 'lucide-react';
 
-export default function SunsetPanel({ sunData }) {
+export default function SunsetPanel({ sunData, lightIndex }) {
   return (
 <div className="card">
           <div className="card-header">
@@ -10,6 +10,13 @@ export default function SunsetPanel({ sunData }) {
           </div>
 
           <div className="sunset-box">
+            <div className="sunset-row">
+              <div>
+                <div className="sunset-label">Luce naturale stimata</div>
+                <div className="sunset-light-note">Indice a cielo sereno usato per l’opacità della foto</div>
+              </div>
+              <div className="sunset-val">{lightIndex}/100</div>
+            </div>
             <div className="sunset-row">
               <div>
                 <div className="sunset-label">Luce calda (stima: tramonto −45 min)</div>
